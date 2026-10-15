@@ -1,10 +1,13 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
 	"fmt"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/serf"
-	"github.com/mitchellh/cli"
 )
 
 // VersionCommand is a Command implementation prints the version.

@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -6,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/client"
 	"github.com/hashicorp/serf/serf"
-	"github.com/mitchellh/cli"
 )
 
 const (
@@ -129,7 +132,7 @@ OUTER:
 	}
 
 	if verbose {
-		total := float64(time.Now().Sub(start)) / float64(time.Second)
+		total := float64(time.Since(start)) / float64(time.Second)
 		timeToLast := float64(last.Sub(start)) / float64(time.Second)
 		c.Ui.Output(fmt.Sprintf("Query time: %0.2f sec, time to last response: %0.2f sec", total, timeToLast))
 	}

@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package version
 
 import (
@@ -13,7 +16,7 @@ var (
 	//
 	// Version must conform to the format expected by
 	// github.com/hashicorp/go-version for tests to work.
-	Version = "0.8.2"
+	Version = "0.10.2"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
@@ -38,5 +41,5 @@ func GetHumanVersion() string {
 	}
 
 	// Strip off any single quotes added by the git information.
-	return strings.Replace(version, "'", "", -1)
+	return strings.ReplaceAll(version, "'", "")
 }

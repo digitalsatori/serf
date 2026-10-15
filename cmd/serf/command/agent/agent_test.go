@@ -1,8 +1,10 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,7 +19,7 @@ func TestAgent_eventHandler(t *testing.T) {
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
 
-	a1 := testAgent(t, ip1, nil)
+	a1 := testAgent(t, ip1)
 	defer a1.Shutdown()
 	defer a1.Leave()
 
@@ -43,12 +45,12 @@ func TestAgentShutdown_multiple(t *testing.T) {
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
 
-	a := testAgent(t, ip1, nil)
+	a := testAgent(t, ip1)
 	if err := a.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if err := a.Shutdown(); err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -59,7 +61,7 @@ func TestAgentUserEvent(t *testing.T) {
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
 
-	a1 := testAgent(t, ip1, nil)
+	a1 := testAgent(t, ip1)
 	defer a1.Shutdown()
 	defer a1.Leave()
 
@@ -103,7 +105,7 @@ func TestAgentQuery_BadPrefix(t *testing.T) {
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
 
-	a1 := testAgent(t, ip1, nil)
+	a1 := testAgent(t, ip1)
 	defer a1.Shutdown()
 	defer a1.Leave()
 
@@ -125,11 +127,7 @@ func TestAgentTagsFile(t *testing.T) {
 		"datacenter": "us-east",
 	}
 
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
@@ -150,8 +148,7 @@ func TestAgentTagsFile(t *testing.T) {
 
 	testutil.Yield()
 
-	err = a1.SetTags(tags)
-
+	err := a1.SetTags(tags)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -245,12 +242,7 @@ func TestAgentKeyringFile(t *testing.T) {
 		"5K9OtfP7efFrNKe5WCQvXvnaXJ5cWP0SvXiwe0kkjM4=",
 	}
 
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
-
+	td := t.TempDir()
 	keyringFile := filepath.Join(td, "keyring.json")
 
 	serfConfig := serf.DefaultConfig()
@@ -262,7 +254,7 @@ func TestAgentKeyringFile(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	if err := ioutil.WriteFile(keyringFile, encodedKeys, 0600); err != nil {
+	if err := os.WriteFile(keyringFile, encodedKeys, 0600); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
@@ -296,21 +288,17 @@ func TestAgentKeyringFile_BadOptions(t *testing.T) {
 }
 
 func TestAgentKeyringFile_NoKeys(t *testing.T) {
-	dir, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	td := t.TempDir()
 
-	keysFile := filepath.Join(dir, "keyring")
-	if err := ioutil.WriteFile(keysFile, []byte("[]"), 0600); err != nil {
+	keysFile := filepath.Join(td, "keyring")
+	if err := os.WriteFile(keysFile, []byte("[]"), 0600); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	agentConfig := DefaultConfig()
 	agentConfig.KeyringFile = keysFile
 
-	_, err = Create(agentConfig, serf.DefaultConfig(), nil)
+	_, err := Create(agentConfig, serf.DefaultConfig(), nil)
 	if err == nil {
 		t.Fatalf("should have errored")
 	}

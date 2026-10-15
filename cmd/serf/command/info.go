@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -7,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mitchellh/cli"
+	"github.com/hashicorp/cli"
 )
 
 // InfoCommand is a Command implementation that queries a running
@@ -88,7 +91,7 @@ func (s StatsContainer) String() string {
 
 	// Iterate over each top-level key
 	for _, key := range keys {
-		buf.WriteString(fmt.Sprintf(key + ":\n"))
+		fmt.Fprintf(&buf, "%s:\n", key)
 
 		// Sort the sub-keys
 		subvals := s[key]
@@ -101,7 +104,7 @@ func (s StatsContainer) String() string {
 		// Iterate over the subkeys
 		for _, subkey := range subkeys {
 			val := subvals[subkey]
-			buf.WriteString(fmt.Sprintf("\t%s = %s\n", subkey, val))
+			fmt.Fprintf(&buf, "\t%s = %s\n", subkey, val)
 		}
 	}
 	return buf.String()

@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -37,7 +40,7 @@ func testRPCClientWithConfig(t *testing.T, ip net.IP, agentConf *Config,
 	mult := io.MultiWriter(tw, lw)
 
 	agent := testAgentWithConfig(t, ip, agentConf, serfConf, mult)
-	ipc := NewAgentIPC(agent, "", l, mult, lw)
+	ipc := NewAgentIPC(agent, "", l, mult, lw, serfConf.MsgpackUseNewTimeFormat)
 
 	rpcClient, err := client.NewRPCClient(l.Addr().String())
 	if err != nil {
@@ -70,7 +73,7 @@ func TestRPCClientForceLeave(t *testing.T) {
 	defer client.Close()
 	defer a1.Shutdown()
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	defer a2.Shutdown()
 
 	if err := a1.Start(); err != nil {
@@ -101,7 +104,7 @@ WAIT:
 	if len(m) != 2 {
 		t.Fatalf("should have 2 members: %#v", a1.Serf().Members())
 	}
-	if findMember(t, m, a2.conf.NodeName).Status != serf.StatusFailed && time.Now().Sub(start) < 3*time.Second {
+	if findMember(t, m, a2.conf.NodeName).Status != serf.StatusFailed && time.Since(start) < 3*time.Second {
 		goto WAIT
 	}
 
@@ -137,7 +140,7 @@ func TestRPCClientForceLeave_prune(t *testing.T) {
 	}
 	defer a1.Shutdown()
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	if err := a2.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -163,7 +166,7 @@ WAIT:
 	if len(m) != 2 {
 		t.Fatalf("should have 2 members: %#v", a1.Serf().Members())
 	}
-	if findMember(t, m, a2.conf.NodeName).Status != serf.StatusFailed && time.Now().Sub(start) < 3*time.Second {
+	if findMember(t, m, a2.conf.NodeName).Status != serf.StatusFailed && time.Since(start) < 3*time.Second {
 		goto WAIT
 	}
 
@@ -196,7 +199,7 @@ func TestRPCClientJoin(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	if err := a2.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -230,7 +233,7 @@ func TestRPCClientMembers(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	if err := a2.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -280,7 +283,7 @@ func TestRPCClientMembersFiltered(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	if err := a2.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -489,7 +492,7 @@ func TestRPCClientMonitor(t *testing.T) {
 	drainEventCh(eventCh)
 
 	// Join a bad thing to generate more events
-	a1.Join(nil, false)
+	_, _ = a1.Join(nil, false)
 
 	testutil.Yield()
 
@@ -516,7 +519,7 @@ func TestRPCClientStream_User(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	eventCh := make(chan map[string]interface{}, 64)
+	eventCh := make(chan map[string]any, 64)
 	if handle, err := client.Stream("user", eventCh); err != nil {
 		t.Fatalf("err: %v", err)
 	} else {
@@ -542,7 +545,7 @@ func TestRPCClientStream_User(t *testing.T) {
 		if e["Name"].(string) != "deploy" {
 			t.Fatalf("bad event: %#v", e)
 		}
-		if bytes.Compare(e["Payload"].([]byte), []byte("foo")) != 0 {
+		if !bytes.Equal(e["Payload"].([]byte), []byte("foo")) {
 			t.Fatalf("bad event: %#v", e)
 		}
 		if e["Coalesce"].(bool) != false {
@@ -570,7 +573,7 @@ func TestRPCClientStream_Member(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	a2 := testAgent(t, ip2, nil)
+	a2 := testAgent(t, ip2)
 	if err := a2.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -578,7 +581,7 @@ func TestRPCClientStream_Member(t *testing.T) {
 
 	testutil.Yield()
 
-	eventCh := make(chan map[string]interface{}, 64)
+	eventCh := make(chan map[string]any, 64)
 	if handle, err := client.Stream("*", eventCh); err != nil {
 		t.Fatalf("err: %v", err)
 	} else {
@@ -600,11 +603,11 @@ func TestRPCClientStream_Member(t *testing.T) {
 			t.Fatalf("bad event: %#v", e)
 		}
 
-		members := e["Members"].([]interface{})
+		members := e["Members"].([]any)
 		if len(members) != 1 {
 			t.Fatalf("should have 1 member")
 		}
-		member := members[0].(map[interface{}]interface{})
+		member := members[0].(map[any]any)
 
 		if _, ok := member["Name"].(string); !ok {
 			t.Fatalf("bad event: %#v", e)
@@ -615,7 +618,7 @@ func TestRPCClientStream_Member(t *testing.T) {
 		if _, ok := member["Port"].(uint64); !ok {
 			t.Fatalf("bad event: %#v", e)
 		}
-		if _, ok := member["Tags"].(map[interface{}]interface{}); !ok {
+		if _, ok := member["Tags"].(map[any]any); !ok {
 			t.Fatalf("bad event: %#v", e)
 		}
 		if stat, _ := member["Status"].(string); stat != "alive" {
@@ -779,7 +782,7 @@ func TestRPCClientStream_Query(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	eventCh := make(chan map[string]interface{}, 64)
+	eventCh := make(chan map[string]any, 64)
 	if handle, err := cl.Stream("query", eventCh); err != nil {
 		t.Fatalf("err: %v", err)
 	} else {
@@ -813,7 +816,7 @@ func TestRPCClientStream_Query(t *testing.T) {
 		if e["Name"].(string) != "deploy" {
 			t.Fatalf("bad query: %#v", e)
 		}
-		if bytes.Compare(e["Payload"].([]byte), []byte("foo")) != 0 {
+		if !bytes.Equal(e["Payload"].([]byte), []byte("foo")) {
 			t.Fatalf("bad query: %#v", e)
 		}
 
@@ -835,7 +838,7 @@ func TestRPCClientStream_Query_Respond(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	eventCh := make(chan map[string]interface{}, 64)
+	eventCh := make(chan map[string]any, 64)
 	if handle, err := cl.Stream("query", eventCh); err != nil {
 		t.Fatalf("err: %v", err)
 	} else {
@@ -1017,6 +1020,9 @@ func TestRPCClient_Keys(t *testing.T) {
 	keys, num, _, err := client.ListKeys()
 	if err != nil {
 		t.Fatalf("err: %v", err)
+	}
+	if num != 1 {
+		t.Fatalf("expected only 1 key, got: %d", num)
 	}
 	if _, ok := keys[newKey]; ok {
 		t.Fatalf("have new key: %s", newKey)

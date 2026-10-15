@@ -1,8 +1,10 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
 	"io"
-	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -11,11 +13,6 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/hashicorp/serf/testutil"
 )
-
-func init() {
-	// Seed the random number generator
-	rand.Seed(time.Now().UnixNano())
-}
 
 func testAgent(t *testing.T, ip net.IP) *agent.Agent {
 	agentConfig := agent.DefaultConfig()
@@ -57,6 +54,6 @@ func testIPC(t *testing.T, ip net.IP, a *agent.Agent) (string, *agent.AgentIPC) 
 
 	lw := agent.NewLogWriter(512)
 	mult := io.MultiWriter(tw, lw)
-	ipc := agent.NewAgentIPC(a, "", l, mult, lw)
+	ipc := agent.NewAgentIPC(a, "", l, mult, lw, false)
 	return rpcAddr, ipc
 }

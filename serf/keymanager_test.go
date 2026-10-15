@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -265,7 +268,7 @@ func TestSerf_ListKeys(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	s2.config.MemberlistConfig.Keyring.AddKey(extraKeyBytes)
+	_ = s2.config.MemberlistConfig.Keyring.AddKey(extraKeyBytes)
 
 	waitUntilNumNodes(t, 1, s1, s2)
 

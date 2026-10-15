@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright IBM Corp. 2013, 2026
+# SPDX-License-Identifier: MPL-2.0
+
 import base64
 import os
 import os.path

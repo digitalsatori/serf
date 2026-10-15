@@ -1,8 +1,10 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
 	"io"
-	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -10,11 +12,6 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/hashicorp/serf/testutil"
 )
-
-func init() {
-	// Seed the random number generator
-	rand.Seed(time.Now().UnixNano())
-}
 
 func drainEventCh(ch <-chan string) {
 	for {
@@ -26,8 +23,8 @@ func drainEventCh(ch <-chan string) {
 	}
 }
 
-func testAgent(t *testing.T, ip net.IP, logOutput io.Writer) *Agent {
-	return testAgentWithConfig(t, ip, DefaultConfig(), serf.DefaultConfig(), logOutput)
+func testAgent(t *testing.T, ip net.IP) *Agent {
+	return testAgentWithConfig(t, ip, DefaultConfig(), serf.DefaultConfig(), nil)
 }
 
 func testAgentWithConfig(t *testing.T, ip net.IP, agentConfig *Config, serfConfig *serf.Config, logOutput io.Writer) *Agent {

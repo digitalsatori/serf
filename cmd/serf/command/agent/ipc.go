@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 /*
@@ -23,9 +26,11 @@ package agent
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"os"
 	"regexp"
@@ -34,8 +39,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armon/go-metrics"
-	"github.com/hashicorp/go-msgpack/codec"
+	metrics "github.com/hashicorp/go-metrics"
+	"github.com/hashicorp/go-msgpack/v2/codec"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/serf/coordinate"
 	"github.com/hashicorp/serf/serf"
@@ -238,18 +243,19 @@ type memberEventRecord struct {
 
 type AgentIPC struct {
 	sync.Mutex
-	agent     *Agent
-	authKey   string
-	clients   map[string]*IPCClient
-	listener  net.Listener
-	logger    *log.Logger
-	logWriter *logWriter
-	stop      uint32
-	stopCh    chan struct{}
+	agent                   *Agent
+	authKey                 string
+	clients                 map[string]*IPCClient
+	listener                net.Listener
+	logger                  *log.Logger
+	logWriter               *logWriter
+	stop                    atomic.Uint32
+	stopCh                  chan struct{}
+	msgpackUseNewTimeFormat bool
 }
 
 type IPCClient struct {
-	queryID      uint64 // Used to increment query IDs
+	queryID      atomic.Uint64 // Used to increment query IDs
 	name         string
 	conn         net.Conn
 	reader       *bufio.Reader
@@ -269,7 +275,7 @@ type IPCClient struct {
 
 // send is used to send an object using the MsgPack encoding. send
 // is serialized to prevent write overlaps, while properly buffering.
-func (c *IPCClient) Send(header *responseHeader, obj interface{}) error {
+func (c *IPCClient) Send(header *responseHeader, obj any) error {
 	c.writeLock.Lock()
 	defer c.writeLock.Unlock()
 
@@ -296,7 +302,7 @@ func (c *IPCClient) String() string {
 
 // nextQueryID safely generates a new query ID
 func (c *IPCClient) nextQueryID() uint64 {
-	return atomic.AddUint64(&c.queryID, 1)
+	return c.queryID.Add(1)
 }
 
 // RegisterQuery is used to register a pending query that may
@@ -306,7 +312,7 @@ func (c *IPCClient) RegisterQuery(q *serf.Query) uint64 {
 	id := c.nextQueryID()
 
 	// Ensure the query deadline is in the future
-	timeout := q.Deadline().Sub(time.Now())
+	timeout := time.Until(q.Deadline())
 	if timeout < 0 {
 		return id
 	}
@@ -327,18 +333,19 @@ func (c *IPCClient) RegisterQuery(q *serf.Query) uint64 {
 
 // NewAgentIPC is used to create a new Agent IPC handler
 func NewAgentIPC(agent *Agent, authKey string, listener net.Listener,
-	logOutput io.Writer, logWriter *logWriter) *AgentIPC {
+	logOutput io.Writer, logWriter *logWriter, msgpackUseNewTimeFormat bool) *AgentIPC {
 	if logOutput == nil {
 		logOutput = os.Stderr
 	}
 	ipc := &AgentIPC{
-		agent:     agent,
-		authKey:   authKey,
-		clients:   make(map[string]*IPCClient),
-		listener:  listener,
-		logger:    log.New(logOutput, "", log.LstdFlags),
-		logWriter: logWriter,
-		stopCh:    make(chan struct{}),
+		agent:                   agent,
+		authKey:                 authKey,
+		clients:                 make(map[string]*IPCClient),
+		listener:                listener,
+		logger:                  log.New(logOutput, "", log.LstdFlags),
+		logWriter:               logWriter,
+		stopCh:                  make(chan struct{}),
+		msgpackUseNewTimeFormat: msgpackUseNewTimeFormat,
 	}
 	go ipc.listen()
 	return ipc
@@ -353,7 +360,7 @@ func (i *AgentIPC) Shutdown() {
 		return
 	}
 
-	atomic.StoreUint32(&i.stop, 1)
+	i.stop.Store(1)
 	close(i.stopCh)
 	i.listener.Close()
 
@@ -364,7 +371,16 @@ func (i *AgentIPC) Shutdown() {
 }
 
 func (i *AgentIPC) isStopped() bool {
-	return atomic.LoadUint32(&i.stop) == 1
+	return i.stop.Load() == 1
+}
+
+func (i *AgentIPC) newMsgpackHandle() *codec.MsgpackHandle {
+	return &codec.MsgpackHandle{
+		WriteExt: true,
+		BasicHandle: codec.BasicHandle{ //nolint:staticcheck
+			TimeNotBuiltin: !i.msgpackUseNewTimeFormat,
+		},
+	}
 }
 
 // listen is a long running routine that listens for new clients
@@ -379,7 +395,7 @@ func (i *AgentIPC) listen() {
 			continue
 		}
 		i.logger.Printf("[INFO] agent.ipc: Accepted client: %v", conn.RemoteAddr())
-		metrics.IncrCounter([]string{"agent", "ipc", "accept"}, 1)
+		metrics.IncrCounterWithLabels([]string{"agent", "ipc", "accept"}, 1, nil)
 
 		// Wrap the connection in a client
 		client := &IPCClient{
@@ -390,10 +406,8 @@ func (i *AgentIPC) listen() {
 			eventStreams:   make(map[uint64]*eventStream),
 			pendingQueries: make(map[uint64]*serf.Query),
 		}
-		client.dec = codec.NewDecoder(client.reader,
-			&codec.MsgpackHandle{RawToString: true, WriteExt: true})
-		client.enc = codec.NewEncoder(client.writer,
-			&codec.MsgpackHandle{RawToString: true, WriteExt: true})
+		client.dec = codec.NewDecoder(client.reader, i.newMsgpackHandle())
+		client.enc = codec.NewEncoder(client.writer, i.newMsgpackHandle())
 
 		// Register the client
 		i.Lock()
@@ -466,9 +480,9 @@ func (i *AgentIPC) handleRequest(client *IPCClient, reqHeader *requestHeader) er
 	if command != handshakeCommand && client.version == 0 {
 		respHeader := responseHeader{Seq: seq, Error: handshakeRequired}
 		client.Send(&respHeader, nil)
-		return fmt.Errorf(handshakeRequired)
+		return errors.New(handshakeRequired)
 	}
-	metrics.IncrCounter([]string{"agent", "ipc", "command"}, 1)
+	metrics.IncrCounterWithLabels([]string{"agent", "ipc", "command"}, 1, nil)
 
 	// Ensure the client has authenticated after the handshake if necessary
 	if i.authKey != "" && !client.didAuth && command != authCommand && command != handshakeCommand {
@@ -965,9 +979,7 @@ func (i *AgentIPC) handleTags(client *IPCClient, seq uint64) error {
 		}
 	}
 
-	for key, val := range req.Tags {
-		tags[key] = val
-	}
+	maps.Copy(tags, req.Tags)
 
 	err := i.agent.SetTags(tags)
 
@@ -1025,7 +1037,7 @@ func (i *AgentIPC) handleRespond(client *IPCClient, seq uint64) error {
 	if ok {
 		err = query.Respond(req.Payload)
 	} else {
-		err = fmt.Errorf(invalidQueryID)
+		err = errors.New(invalidQueryID)
 	}
 
 	// Respond

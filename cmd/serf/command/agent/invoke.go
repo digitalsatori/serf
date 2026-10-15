@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -12,7 +15,7 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
-	"github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/serf/serf"
 )
 
@@ -40,7 +43,7 @@ var sanitizeTagRegexp = regexp.MustCompile(`[^A-Z0-9_]`)
 // In all events, data is passed in via stdin to facilitate piping. See
 // the various stdin functions below for more information.
 func invokeEventScript(logger *log.Logger, script string, self serf.Member, event serf.Event) error {
-	defer metrics.MeasureSince([]string{"agent", "invoke", script}, time.Now())
+	defer metrics.MeasureSinceWithLabels([]string{"agent", "invoke", script}, time.Now(), nil)
 	output, _ := circbuf.NewBuffer(maxBufSize)
 
 	// Determine the shell invocation based on OS
@@ -130,8 +133,8 @@ func invokeEventScript(logger *log.Logger, script string, self serf.Member, even
 
 // eventClean cleans a value to be a parameter in an event line.
 func eventClean(v string) string {
-	v = strings.Replace(v, "\t", "\\t", -1)
-	v = strings.Replace(v, "\n", "\\n", -1)
+	v = strings.ReplaceAll(v, "\t", "\\t")
+	v = strings.ReplaceAll(v, "\n", "\\n")
 	return v
 }
 
@@ -142,7 +145,7 @@ func eventClean(v string) string {
 // "NAME    ADDRESS    ROLE    TAGS" where the whitespace is actually tabs.
 // The name and role are cleaned so that newlines and tabs are replaced
 // with "\n" and "\t" respectively.
-func memberEventStdin(logger *log.Logger, stdin io.WriteCloser, e *serf.MemberEvent) {
+func memberEventStdin(_ *log.Logger, stdin io.WriteCloser, e *serf.MemberEvent) {
 	defer stdin.Close()
 	for _, member := range e.Members {
 		// Format the tags as tag1=v1,tag2=v2,...
@@ -153,12 +156,12 @@ func memberEventStdin(logger *log.Logger, stdin io.WriteCloser, e *serf.MemberEv
 		tags := strings.Join(tagPairs, ",")
 
 		// Send the entire line
-		_, err := stdin.Write([]byte(fmt.Sprintf(
+		_, err := stdin.Write(fmt.Appendf(nil,
 			"%s\t%s\t%s\t%s\n",
 			eventClean(member.Name),
 			member.Addr.String(),
 			eventClean(member.Tags["role"]),
-			eventClean(tags))))
+			eventClean(tags)))
 		if err != nil {
 			return
 		}

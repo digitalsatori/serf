@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -7,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"regexp"
+	"slices"
 	"sync"
 	"time"
 
@@ -211,6 +215,9 @@ type NodeResponse struct {
 // a set of filers.
 func (s *Serf) shouldProcessQuery(filters [][]byte) bool {
 	for _, filter := range filters {
+		if len(filter) == 0 {
+			return false
+		}
 		switch filterType(filter[0]) {
 		case filterNodeType:
 			// Decode the filter
@@ -221,13 +228,7 @@ func (s *Serf) shouldProcessQuery(filters [][]byte) bool {
 			}
 
 			// Check if we are being targeted
-			found := false
-			for _, n := range nodes {
-				if n == s.config.NodeName {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(nodes, s.config.NodeName)
 			if !found {
 				return false
 			}

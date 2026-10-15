@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -13,11 +16,11 @@ import (
 
 type MockStreamClient struct {
 	headers []*responseHeader
-	objs    []interface{}
+	objs    []any
 	err     error
 }
 
-func (m *MockStreamClient) Send(h *responseHeader, o interface{}) error {
+func (m *MockStreamClient) Send(h *responseHeader, o any) error {
 	m.headers = append(m.headers, h)
 	m.objs = append(m.objs, o)
 	return m.err
@@ -93,7 +96,7 @@ func TestIPCEventStream(t *testing.T) {
 	if obj1.Name != "foobar" {
 		t.Fatalf("bad event: %#v", obj1)
 	}
-	if bytes.Compare(obj1.Payload, []byte("test")) != 0 {
+	if !bytes.Equal(obj1.Payload, []byte("test")) {
 		t.Fatalf("bad event: %#v", obj1)
 	}
 	if !obj1.Coalesce {
@@ -108,7 +111,7 @@ func TestIPCEventStream(t *testing.T) {
 	if mem1.Name != "TestNode" {
 		t.Fatalf("bad member: %#v", mem1)
 	}
-	if bytes.Compare(mem1.Addr, []byte{127, 0, 0, 1}) != 0 {
+	if !bytes.Equal(mem1.Addr, []byte{127, 0, 0, 1}) {
 		t.Fatalf("bad member: %#v", mem1)
 	}
 	if mem1.Port != 12345 {
@@ -149,7 +152,7 @@ func TestIPCEventStream(t *testing.T) {
 	if obj3.Name != "deploy" {
 		t.Fatalf("bad query: %#v", obj3)
 	}
-	if bytes.Compare(obj3.Payload, []byte("test")) != 0 {
+	if !bytes.Equal(obj3.Payload, []byte("test")) {
 		t.Fatalf("bad query: %#v", obj3)
 	}
 

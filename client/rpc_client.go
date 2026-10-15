@@ -1,15 +1,18 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package client
 
 import (
 	"bufio"
-	"fmt"
+	"errors"
 	"log"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/go-msgpack/v2/codec"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/serf/coordinate"
 )
@@ -20,7 +23,7 @@ const (
 )
 
 var (
-	clientClosed = fmt.Errorf("client closed")
+	errClientClosed = errors.New("client closed")
 )
 
 type seqCallback struct {
@@ -50,6 +53,12 @@ type Config struct {
 	// If provided, overrides the DefaultTimeout used for
 	// IO deadlines
 	Timeout time.Duration
+
+	// MsgpackUseNewTimeFormat when set to true, force the underlying msgpack
+	// codec to use the new format of time.Time when encoding (used in
+	// go-msgpack v1.1.5 by default). Decoding is not affected, as all
+	// go-msgpack v2.1.0+ decoders know how to decode both formats.
+	MsgpackUseNewTimeFormat bool
 }
 
 // RPCClient is used to make requests to the Agent using an RPC mechanism.
@@ -71,17 +80,17 @@ type RPCClient struct {
 
 	shutdown     bool
 	shutdownCh   chan struct{}
-	shutdownLock sync.Mutex
+	shutdownLock sync.RWMutex
 }
 
 // send is used to send an object using the MsgPack encoding. send
 // is serialized to prevent write overlaps, while properly buffering.
-func (c *RPCClient) send(header *requestHeader, obj interface{}) error {
+func (c *RPCClient) send(header *requestHeader, obj any) error {
 	c.writeLock.Lock()
 	defer c.writeLock.Unlock()
 
-	if c.shutdown {
-		return clientClosed
+	if c.IsClosed() {
+		return errClientClosed
 	}
 
 	// Setup an IO deadline, this way we won't wait indefinitely
@@ -116,6 +125,15 @@ func NewRPCClient(addr string) (*RPCClient, error) {
 	return ClientFromConfig(&conf)
 }
 
+func (c *Config) newMsgpackHandle() *codec.MsgpackHandle {
+	return &codec.MsgpackHandle{
+		WriteExt: true,
+		BasicHandle: codec.BasicHandle{ //nolint:staticcheck
+			TimeNotBuiltin: !c.MsgpackUseNewTimeFormat,
+		},
+	}
+}
+
 // ClientFromConfig is used to create a new RPC client given the
 // configuration object. This will return a client, or an error if
 // the connection could not be established.
@@ -141,10 +159,8 @@ func ClientFromConfig(c *Config) (*RPCClient, error) {
 		dispatch:   make(map[uint64]seqHandler),
 		shutdownCh: make(chan struct{}),
 	}
-	client.dec = codec.NewDecoder(client.reader,
-		&codec.MsgpackHandle{RawToString: true, WriteExt: true})
-	client.enc = codec.NewEncoder(client.writer,
-		&codec.MsgpackHandle{RawToString: true, WriteExt: true})
+	client.dec = codec.NewDecoder(client.reader, c.newMsgpackHandle())
+	client.enc = codec.NewEncoder(client.writer, c.newMsgpackHandle())
 	go client.listen()
 
 	// Do the initial handshake
@@ -168,6 +184,8 @@ func ClientFromConfig(c *Config) (*RPCClient, error) {
 type StreamHandle uint64
 
 func (c *RPCClient) IsClosed() bool {
+	c.shutdownLock.RLock()
+	defer c.shutdownLock.RUnlock()
 	return c.shutdown
 }
 
@@ -199,8 +217,8 @@ func (c *RPCClient) ForceLeave(node string) error {
 	return c.genericRPC(&header, &req, nil)
 }
 
-//ForceLeavePrune uses ForceLeave but is used to reap the
-//node entirely
+// ForceLeavePrune uses ForceLeave but is used to reap the
+// node entirely
 func (c *RPCClient) ForceLeavePrune(node string) error {
 	header := requestHeader{
 		Command: forceLeaveCommand,
@@ -359,7 +377,7 @@ func (c *RPCClient) RemoveKey(key string) (map[string]string, error) {
 
 // ListKeys returns all of the active keys on each member of the cluster
 func (c *RPCClient) ListKeys() (map[string]int, int, map[string]string, error) {
-	header := requestHeader{
+	header := requestHeader{ //nolint:staticcheck
 		Command: listKeysCommand,
 		Seq:     c.getSeq(),
 	}
@@ -437,7 +455,7 @@ func (mh *monitorHandler) Cleanup() {
 	if !mh.closed {
 		if !mh.init {
 			mh.init = true
-			mh.initCh <- fmt.Errorf("Stream closed")
+			mh.initCh <- errors.New("Stream closed")
 		}
 		if mh.logCh != nil {
 			close(mh.logCh)
@@ -480,7 +498,7 @@ func (c *RPCClient) Monitor(level logutils.LogLevel, ch chan<- string) (StreamHa
 		return StreamHandle(seq), err
 	case <-c.shutdownCh:
 		c.deregisterHandler(seq)
-		return 0, clientClosed
+		return 0, errClientClosed
 	}
 }
 
@@ -489,7 +507,7 @@ type streamHandler struct {
 	closed  bool
 	init    bool
 	initCh  chan<- error
-	eventCh chan<- map[string]interface{}
+	eventCh chan<- map[string]any
 	seq     uint64
 }
 
@@ -502,7 +520,7 @@ func (sh *streamHandler) Handle(resp *responseHeader) {
 	}
 
 	// Decode logs for all other responses
-	var rec map[string]interface{}
+	var rec map[string]any
 	if err := sh.client.dec.Decode(&rec); err != nil {
 		log.Printf("[ERR] Failed to decode stream record: %v", err)
 		sh.client.deregisterHandler(sh.seq)
@@ -519,7 +537,7 @@ func (sh *streamHandler) Cleanup() {
 	if !sh.closed {
 		if !sh.init {
 			sh.init = true
-			sh.initCh <- fmt.Errorf("Stream closed")
+			sh.initCh <- errors.New("Stream closed")
 		}
 		if sh.eventCh != nil {
 			close(sh.eventCh)
@@ -529,7 +547,7 @@ func (sh *streamHandler) Cleanup() {
 }
 
 // Stream is used to subscribe to events
-func (c *RPCClient) Stream(filter string, ch chan<- map[string]interface{}) (StreamHandle, error) {
+func (c *RPCClient) Stream(filter string, ch chan<- map[string]any) (StreamHandle, error) {
 	// Setup the request
 	seq := c.getSeq()
 	header := requestHeader{
@@ -562,7 +580,7 @@ func (c *RPCClient) Stream(filter string, ch chan<- map[string]interface{}) (Str
 		return StreamHandle(seq), err
 	case <-c.shutdownCh:
 		c.deregisterHandler(seq)
-		return 0, clientClosed
+		return 0, errClientClosed
 	}
 }
 
@@ -620,7 +638,7 @@ func (qh *queryHandler) Cleanup() {
 	if !qh.closed {
 		if !qh.init {
 			qh.init = true
-			qh.initCh <- fmt.Errorf("Stream closed")
+			qh.initCh <- errors.New("Stream closed")
 		}
 		if qh.ackCh != nil {
 			close(qh.ackCh)
@@ -689,7 +707,7 @@ func (c *RPCClient) Query(params *QueryParam) error {
 		return err
 	case <-c.shutdownCh:
 		c.deregisterHandler(seq)
-		return clientClosed
+		return errClientClosed
 	}
 }
 
@@ -734,7 +752,7 @@ func (c *RPCClient) auth(authKey string) error {
 
 // genericRPC is used to send a request and wait for an
 // errorSequenceResponse, potentially returning an error
-func (c *RPCClient) genericRPC(header *requestHeader, req interface{}, resp interface{}) error {
+func (c *RPCClient) genericRPC(header *requestHeader, req any, resp any) error {
 	// Setup a response handler
 	errCh := make(chan error, 1)
 	handler := func(respHeader *responseHeader) {
@@ -765,14 +783,14 @@ func (c *RPCClient) genericRPC(header *requestHeader, req interface{}, resp inte
 	case err := <-errCh:
 		return err
 	case <-c.shutdownCh:
-		return clientClosed
+		return errClientClosed
 	}
 }
 
 // strToError converts a string to an error if not blank
 func strToError(s string) error {
 	if s != "" {
-		return fmt.Errorf(s)
+		return errors.New(s)
 	}
 	return nil
 }
@@ -832,7 +850,7 @@ func (c *RPCClient) listen() {
 	var respHeader responseHeader
 	for {
 		if err := c.dec.Decode(&respHeader); err != nil {
-			if !c.shutdown {
+			if !c.IsClosed() {
 				log.Printf("[ERR] agent.client: Failed to decode response header: %v", err)
 			}
 			break

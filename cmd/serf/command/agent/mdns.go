@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -18,18 +21,20 @@ const (
 // AgentMDNS is used to advertise ourself using mDNS and to
 // attempt to join peers periodically using mDNS queries.
 type AgentMDNS struct {
-	agent    *Agent
-	discover string
-	logger   *log.Logger
-	seen     map[string]struct{}
-	server   *mdns.Server
-	replay   bool
-	iface    *net.Interface
+	agent       *Agent
+	discover    string
+	logger      *log.Logger
+	seen        map[string]struct{}
+	server      *mdns.Server
+	replay      bool
+	iface       *net.Interface
+	disableIPv4 bool
+	disableIPv6 bool
 }
 
 // NewAgentMDNS is used to create a new AgentMDNS
 func NewAgentMDNS(agent *Agent, logOutput io.Writer, replay bool,
-	node, discover string, iface *net.Interface, bind net.IP, port int) (*AgentMDNS, error) {
+	node, discover string, iface *net.Interface, bind net.IP, port int, MDNSConfig MDNSConfig) (*AgentMDNS, error) {
 	// Create the service
 	service, err := mdns.NewMDNSService(
 		node,
@@ -57,13 +62,15 @@ func NewAgentMDNS(agent *Agent, logOutput io.Writer, replay bool,
 
 	// Initialize the AgentMDNS
 	m := &AgentMDNS{
-		agent:    agent,
-		discover: discover,
-		logger:   log.New(logOutput, "", log.LstdFlags),
-		seen:     make(map[string]struct{}),
-		server:   server,
-		replay:   replay,
-		iface:    iface,
+		agent:       agent,
+		discover:    discover,
+		logger:      log.New(logOutput, "", log.LstdFlags),
+		seen:        make(map[string]struct{}),
+		server:      server,
+		replay:      replay,
+		iface:       iface,
+		disableIPv4: MDNSConfig.DisableIPv4,
+		disableIPv6: MDNSConfig.DisableIPv6,
 	}
 
 	// Start the background workers
@@ -120,9 +127,11 @@ func (m *AgentMDNS) run() {
 // poll is invoked periodically to check for new hosts
 func (m *AgentMDNS) poll(hosts chan *mdns.ServiceEntry) {
 	params := mdns.QueryParam{
-		Service:   mdnsName(m.discover),
-		Interface: m.iface,
-		Entries:   hosts,
+		Service:     mdnsName(m.discover),
+		Interface:   m.iface,
+		Entries:     hosts,
+		DisableIPv4: m.disableIPv4,
+		DisableIPv6: m.disableIPv6,
 	}
 	if err := mdns.Query(&params); err != nil {
 		m.logger.Printf("[ERR] agent.mdns: Failed to poll for new hosts: %v", err)

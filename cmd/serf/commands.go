@@ -1,13 +1,16 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package main
 
 import (
 	"os"
 	"os/signal"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/cmd/serf/command"
 	"github.com/hashicorp/serf/cmd/serf/command/agent"
 	"github.com/hashicorp/serf/version"
-	"github.com/mitchellh/cli"
 )
 
 // Commands is the mapping of all the available Serf commands.

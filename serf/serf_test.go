@@ -1,11 +1,12 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -18,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/go-msgpack/v2/codec"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/serf/coordinate"
 	"github.com/hashicorp/serf/serf/internal/race"
@@ -65,7 +66,7 @@ func testConfig(t *testing.T, ip net.IP) *Config {
 
 // compatible with testing.TB and *retry.R
 type testFailer interface {
-	Fatalf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
 }
 
 // testMember tests that a member in a list is in a given state.
@@ -124,7 +125,6 @@ func TestCreate_badProtocolVersion(t *testing.T) {
 	defer returnFn1()
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(fmt.Sprintf("version-%d", tc.version), func(t *testing.T) {
 			c := testConfig(t, ip1)
 			c.ProtocolVersion = tc.version
@@ -317,11 +317,11 @@ func TestSerf_eventsLeave_avoidInfiniteLeaveRebroadcast(t *testing.T) {
 	s2Name := s2Config.NodeName
 
 	// Allow s3 and s4 to drop joins in the future.
-	var dropJoins uint32
+	var dropJoins atomic.Uint32
 	messageDropper := func(t messageType) bool {
 		switch t {
 		case messageJoinType, messagePushPullType:
-			return atomic.LoadUint32(&dropJoins) == 1
+			return dropJoins.Load() == 1
 		default:
 			return false
 		}
@@ -382,7 +382,7 @@ func TestSerf_eventsLeave_avoidInfiniteLeaveRebroadcast(t *testing.T) {
 
 	// Make s3 and s4 drop inbound join messages and push-pulls for a bit so it won't see
 	// s2 rejoin
-	atomic.StoreUint32(&dropJoins, 1)
+	dropJoins.Store(1)
 
 	// Bring back s2 by mimicking its name and address
 	s2Config = testConfigLocal(t, ip2)
@@ -565,7 +565,7 @@ func TestSerf_getQueueMax(t *testing.T) {
 	// We don't need a running Serf so fake it out with the required
 	// state.
 	s.members = make(map[string]*memberState)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		name := fmt.Sprintf("Member%d", i)
 		s.members[name] = &memberState{
 			Member: Member{
@@ -976,6 +976,7 @@ func TestSerf_reconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+	defer s2.Shutdown()
 
 	waitUntilNumNodes(t, 2, s1, s2)
 	// time.Sleep(s1Config.ReconnectInterval * 5)
@@ -1113,7 +1114,7 @@ func TestSerf_update(t *testing.T) {
 			t.Fatalf("err: %v", err)
 		}
 
-		if time.Now().Sub(start) > 2*time.Second {
+		if time.Since(start) > 2*time.Second {
 			t.Fatalf("timed out trying to restart")
 		}
 	}
@@ -1764,11 +1765,7 @@ func TestSerf_Join_IgnoreOld(t *testing.T) {
 }
 
 func TestSerf_SnapshotRecovery(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
@@ -1840,7 +1837,7 @@ func TestSerf_SnapshotRecovery(t *testing.T) {
 
 	// Wait for the node to auto rejoin
 	start := time.Now()
-	for time.Now().Sub(start) < time.Second {
+	for time.Since(start) < time.Second {
 		members := s1.Members()
 		if len(members) == 2 && members[0].Status == StatusAlive && members[1].Status == StatusAlive {
 			break
@@ -1861,11 +1858,7 @@ func TestSerf_Leave_SnapshotRecovery(t *testing.T) {
 		t.Skip("test contains a data race")
 	}
 
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	ip1, returnFn1 := testutil.TakeIP()
 	defer returnFn1()
@@ -2032,12 +2025,9 @@ func TestSerf_Query(t *testing.T) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -2056,7 +2046,7 @@ func TestSerf_Query(t *testing.T) {
 				return
 			}
 		}
-	}()
+	})
 
 	s2Config := testConfig(t, ip2)
 	s2, err := Create(s2Config)
@@ -2087,7 +2077,7 @@ func TestSerf_Query(t *testing.T) {
 
 	ackCh := resp.AckCh()
 	respCh := resp.ResponseCh()
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case a := <-ackCh:
 			acks = append(acks, a)
@@ -2137,12 +2127,9 @@ func TestSerf_Query_Filter(t *testing.T) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -2161,7 +2148,7 @@ func TestSerf_Query_Filter(t *testing.T) {
 				return
 			}
 		}
-	}()
+	})
 
 	s2Config := testConfig(t, ip2)
 	s2, err := Create(s2Config)
@@ -2212,7 +2199,7 @@ func TestSerf_Query_Filter(t *testing.T) {
 
 	ackCh := resp.AckCh()
 	respCh := resp.ResponseCh()
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case a := <-ackCh:
 			acks = append(acks, a)
@@ -2442,11 +2429,7 @@ func TestSerf_WriteKeyringFile(t *testing.T) {
 	existing := "T9jncgl9mbLus+baTTa7q7nPSUrXwbDi2dhbtqir37s="
 	newKey := "HvY8ubRZMgafUOWvrOadwOckVa1wN3QWAo46FVKbVN8="
 
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	keyringFile := filepath.Join(td, "tags.json")
 
@@ -2479,7 +2462,7 @@ func TestSerf_WriteKeyringFile(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	content, err := ioutil.ReadFile(keyringFile)
+	content, err := os.ReadFile(keyringFile)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -2509,7 +2492,7 @@ func TestSerf_WriteKeyringFile(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	content, err = ioutil.ReadFile(keyringFile)
+	content, err = os.ReadFile(keyringFile)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -2529,7 +2512,7 @@ func TestSerf_WriteKeyringFile(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	content, err = ioutil.ReadFile(keyringFile)
+	content, err = os.ReadFile(keyringFile)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

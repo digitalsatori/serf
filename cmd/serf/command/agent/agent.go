@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -5,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -323,7 +325,7 @@ func (a *Agent) loadTagsFile(tagsFile string) error {
 	}
 
 	if _, err := os.Stat(tagsFile); err == nil {
-		tagData, err := ioutil.ReadFile(tagsFile)
+		tagData, err := os.ReadFile(tagsFile)
 		if err != nil {
 			return fmt.Errorf("Failed to read tags file: %s", err)
 		}
@@ -346,7 +348,7 @@ func (a *Agent) writeTagsFile(tags map[string]string) error {
 	}
 
 	// Use 0600 for permissions, in case tag data is sensitive
-	if err = ioutil.WriteFile(a.agentConf.TagsFile, encoded, 0600); err != nil {
+	if err = os.WriteFile(a.agentConf.TagsFile, encoded, 0600); err != nil {
 		return fmt.Errorf("Failed to write tags file: %s", err)
 	}
 
@@ -390,7 +392,7 @@ func (a *Agent) loadKeyringFile(keyringFile string) error {
 	}
 
 	// Read in the keyring file data
-	keyringData, err := ioutil.ReadFile(keyringFile)
+	keyringData, err := os.ReadFile(keyringFile)
 	if err != nil {
 		return fmt.Errorf("Failed to read keyring file: %s", err)
 	}
@@ -436,7 +438,7 @@ func (a *Agent) Stats() map[string]map[string]string {
 
 	// Convert event handlers from a string slice to a string map
 	for _, script := range a.agentConf.EventScripts() {
-		script_filter := fmt.Sprintf("%s:%s", script.EventFilter.Event, script.EventFilter.Name)
+		script_filter := fmt.Sprintf("%s:%s", script.Event, script.Name)
 		event_handlers[script_filter] = script.Script
 	}
 

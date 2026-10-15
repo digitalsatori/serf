@@ -1,7 +1,11 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
-	"io/ioutil"
+	"io"
+	"slices"
 
 	"github.com/hashicorp/logutils"
 )
@@ -12,17 +16,12 @@ func LevelFilter() *logutils.LevelFilter {
 	return &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"TRACE", "DEBUG", "INFO", "WARN", "ERR"},
 		MinLevel: "INFO",
-		Writer:   ioutil.Discard,
+		Writer:   io.Discard,
 	}
 }
 
 // ValidateLevelFilter verifies that the log levels within the filter
 // are valid.
 func ValidateLevelFilter(minLevel logutils.LogLevel, filter *logutils.LevelFilter) bool {
-	for _, level := range filter.Levels {
-		if level == minLevel {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(filter.Levels, minLevel)
 }

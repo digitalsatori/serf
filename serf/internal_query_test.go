@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -36,7 +39,7 @@ func TestSerfQueries_Passthrough(t *testing.T) {
 	eventCh <- MemberEvent{Type: EventMemberJoin}
 
 	// Should get passed through
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case <-outCh:
 		case <-time.After(100 * time.Millisecond):
@@ -97,12 +100,12 @@ func TestSerfQueries_estimateMaxKeysInListKeyResponseFactor(t *testing.T) {
 	}
 	found := 0
 	for i := len(resp.Keys); i >= 0; i-- {
-		buf, err := encodeMessage(messageKeyResponseType, resp)
+		buf, err := encodeMessage(messageKeyResponseType, resp, q.serf.msgpackUseNewTimeFormat)
 		if err != nil {
 			t.Fatal(err)
 		}
 		qresp := q.createResponse(buf)
-		raw, err := encodeMessage(messageQueryResponseType, qresp)
+		raw, err := encodeMessage(messageQueryResponseType, qresp, q.serf.msgpackUseNewTimeFormat)
 		if err != nil {
 			t.Fatal(err)
 		}

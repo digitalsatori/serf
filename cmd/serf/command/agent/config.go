@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -5,15 +8,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/hashicorp/serf/serf"
-	"github.com/mitchellh/mapstructure"
 )
 
 // This is the default port that we use for Serf communication
@@ -41,6 +46,14 @@ func DefaultConfig() *Config {
 }
 
 type dirEnts []os.FileInfo
+
+type MDNSConfig struct {
+	// Interface is used to provide a binding interface to use for mDNS.
+	// if not set, iface will be used.
+	Interface   string `mapstructure:"interface"`
+	DisableIPv4 bool   `mapstructure:"disable_ipv4"`
+	DisableIPv6 bool   `mapstructure:"disable_ipv6"`
+}
 
 // Config is the configuration that can be set for an Agent. Some of these
 // configurations are exposed as command-line flags to `serf agent`, whereas
@@ -151,10 +164,12 @@ type Config struct {
 	// allows Serf agents to join each other with zero configuration.
 	Discover string `mapstructure:"discover"`
 
+	MDNS MDNSConfig `mapstructure:"mdns"`
+
 	// Interface is used to provide a binding interface to use. It can be
 	// used instead of providing a bind address, as Serf will discover the
 	// address of the provided interface. It is also used to set the multicast
-	// device used with `-discover`.
+	// device used with `-discover`, if `mdns-iface` is not set
 	Interface string `mapstructure:"interface"`
 
 	// ReconnectIntervalRaw is the string reconnect interval time. This interval
@@ -232,6 +247,12 @@ type Config struct {
 	// contain alphanumeric, dashes and '.'characters
 	// and sets maximum length to 128 characters
 	ValidateNodeNames bool `mapstructure:"validate_node_names"`
+
+	// MsgpackUseNewTimeFormat is used to force the underlying msgpack codec to
+	// use the newer format of time.Time when encoding, used in versions <=0.5.5
+	// by default. Decoding is not affected, as all decoders know how to decode
+	// both formats.
+	MsgpackUseNewTimeFormat bool
 }
 
 // BindAddrParts returns the parts of the BindAddr that should be
@@ -283,10 +304,20 @@ func (c *Config) NetworkInterface() (*net.Interface, error) {
 	return net.InterfaceByName(c.Interface)
 }
 
+func (c *Config) MDNSNetworkInterface() (*net.Interface, error) {
+	if c.MDNS.Interface == "" && c.Interface == "" {
+		return nil, nil
+	} else if c.MDNS.Interface != "" {
+		return net.InterfaceByName(c.MDNS.Interface)
+	} else {
+		return net.InterfaceByName(c.Interface)
+	}
+}
+
 // DecodeConfig reads the configuration from the given reader in JSON
 // format and decodes it into a proper Config structure.
 func DecodeConfig(r io.Reader) (*Config, error) {
-	var raw interface{}
+	var raw any
 	dec := json.NewDecoder(r)
 	if err := dec.Decode(&raw); err != nil {
 		return nil, err
@@ -355,18 +386,13 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 // containsKey is used to check if a slice of string keys contains
 // another key
 func containsKey(keys []string, key string) bool {
-	for _, k := range keys {
-		if k == key {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(keys, key)
 }
 
 // MergeConfig merges two configurations together to make a single new
 // configuration.
 func MergeConfig(a, b *Config) *Config {
-	var result Config = *a
+	var result = *a
 
 	if b.NodeName != "" {
 		result.NodeName = b.NodeName
@@ -374,16 +400,14 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Role != "" {
 		result.Role = b.Role
 	}
-	if b.DisableCoordinates == true {
+	if b.DisableCoordinates {
 		result.DisableCoordinates = true
 	}
 	if b.Tags != nil {
 		if result.Tags == nil {
 			result.Tags = make(map[string]string)
 		}
-		for name, value := range b.Tags {
-			result.Tags[name] = value
-		}
+		maps.Copy(result.Tags, b.Tags)
 	}
 	if b.BindAddr != "" {
 		result.BindAddr = b.BindAddr
@@ -406,7 +430,7 @@ func MergeConfig(a, b *Config) *Config {
 	if b.RPCAuthKey != "" {
 		result.RPCAuthKey = b.RPCAuthKey
 	}
-	if b.ReplayOnJoin != false {
+	if b.ReplayOnJoin {
 		result.ReplayOnJoin = b.ReplayOnJoin
 	}
 	if b.Profile != "" {
@@ -415,10 +439,10 @@ func MergeConfig(a, b *Config) *Config {
 	if b.SnapshotPath != "" {
 		result.SnapshotPath = b.SnapshotPath
 	}
-	if b.LeaveOnTerm == true {
+	if b.LeaveOnTerm {
 		result.LeaveOnTerm = true
 	}
-	if b.SkipLeaveOnInt == true {
+	if b.SkipLeaveOnInt {
 		result.SkipLeaveOnInt = true
 	}
 	if b.Discover != "" {
@@ -427,6 +451,19 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Interface != "" {
 		result.Interface = b.Interface
 	}
+
+	if b.MDNS.Interface != "" {
+		result.MDNS.Interface = b.MDNS.Interface
+	}
+
+	if b.MDNS.DisableIPv4 {
+		result.MDNS.DisableIPv4 = true
+	}
+
+	if b.MDNS.DisableIPv6 {
+		result.MDNS.DisableIPv6 = true
+	}
+
 	if b.ReconnectInterval != 0 {
 		result.ReconnectInterval = b.ReconnectInterval
 	}

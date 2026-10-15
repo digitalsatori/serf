@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -7,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/client"
 	"github.com/hashicorp/serf/testutil"
-	"github.com/mitchellh/cli"
 )
 
 func TestCommandRun(t *testing.T) {
@@ -122,7 +125,7 @@ func TestCommandRun_join(t *testing.T) {
 	ip2, returnFn2 := testutil.TakeIP()
 	defer returnFn2()
 
-	a1 := testAgent(t, ip1, nil)
+	a1 := testAgent(t, ip1)
 	if err := a1.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -242,7 +245,7 @@ func TestCommandRun_advertiseAddr(t *testing.T) {
 
 	// Check the addr and port is as advertised!
 	m := members[0]
-	if bytes.Compare(m.Addr, []byte{127, 0, 0, 10}) != 0 {
+	if !bytes.Equal(m.Addr, []byte{127, 0, 0, 10}) {
 		t.Fatalf("bad: %#v", m)
 	}
 	if m.Port != 12345 {
@@ -351,7 +354,7 @@ func TestCommandRun_retry_join(t *testing.T) {
 	ip2, returnFn2 := testutil.TakeIP()
 	defer returnFn2()
 
-	a1 := testAgent(t, ip1, nil)
+	a1 := testAgent(t, ip1)
 	if err := a1.Start(); err != nil {
 		t.Fatalf("err: %v", err)
 	}

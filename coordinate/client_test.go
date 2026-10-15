@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package coordinate
 
 import (
@@ -13,13 +16,13 @@ func TestClient_NewClient(t *testing.T) {
 	config := DefaultConfig()
 
 	config.Dimensionality = 0
-	client, err := NewClient(config)
+	_, err := NewClient(config)
 	if err == nil || !strings.Contains(err.Error(), "dimensionality") {
 		t.Fatal(err)
 	}
 
 	config.Dimensionality = 7
-	client, err = NewClient(config)
+	client, err := NewClient(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +63,10 @@ func TestClient_Update(t *testing.T) {
 
 	// Set the coordinate to a known state.
 	c.Vec[2] = 99.0
-	client.SetCoordinate(c)
+	err = client.SetCoordinate(c)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	c = client.GetCoordinate()
 	verifyEqualFloats(t, c.Vec[2], 99.0)
 }
@@ -161,7 +167,7 @@ func TestClient_NaN_Defense(t *testing.T) {
 		t.Fatalf("bad: %#v", *other)
 	}
 	rtt := 250 * time.Millisecond
-	c, err := client.Update("node", other, rtt)
+	_, err = client.Update("node", other, rtt)
 	if err == nil || !strings.Contains(err.Error(), "coordinate is invalid") {
 		t.Fatalf("err: %v", err)
 	}
@@ -180,7 +186,7 @@ func TestClient_NaN_Defense(t *testing.T) {
 
 	// Block an incompatible coordinate.
 	other.Vec = make([]float64, 2*len(other.Vec))
-	c, err = client.Update("node", other, rtt)
+	_, err = client.Update("node", other, rtt)
 	if err == nil || !strings.Contains(err.Error(), "dimensions aren't compatible") {
 		t.Fatalf("err: %v", err)
 	}
@@ -200,7 +206,7 @@ func TestClient_NaN_Defense(t *testing.T) {
 	// Poison the internal state and make sure we reset on an update.
 	client.coord.Vec[0] = math.NaN()
 	other = NewCoordinate(config)
-	c, err = client.Update("node", other, rtt)
+	c, err := client.Update("node", other, rtt)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

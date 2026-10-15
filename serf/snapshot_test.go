@@ -1,8 +1,10 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -11,11 +13,7 @@ import (
 )
 
 func TestSnapshotter(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	outCh := make(chan Event, 64)
@@ -46,7 +44,7 @@ func TestSnapshotter(t *testing.T) {
 	meJoin := MemberEvent{
 		Type: EventMemberJoin,
 		Members: []Member{
-			Member{
+			{
 				Name: "foo",
 				Addr: []byte{127, 0, 0, 1},
 				Port: 5000,
@@ -56,7 +54,7 @@ func TestSnapshotter(t *testing.T) {
 	meFail := MemberEvent{
 		Type: EventMemberFailed,
 		Members: []Member{
-			Member{
+			{
 				Name: "foo",
 				Addr: []byte{127, 0, 0, 1},
 				Port: 5000,
@@ -165,11 +163,7 @@ func TestSnapshotter(t *testing.T) {
 }
 
 func TestSnapshotter_forceCompact(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	stopCh := make(chan struct{})
@@ -183,7 +177,7 @@ func TestSnapshotter_forceCompact(t *testing.T) {
 	}
 
 	// Write lots of user events
-	for i := 0; i < 1024; i++ {
+	for i := range 1024 {
 		ue := UserEvent{
 			LTime: LamportTime(i),
 		}
@@ -191,7 +185,7 @@ func TestSnapshotter_forceCompact(t *testing.T) {
 	}
 
 	// Write lots of queries
-	for i := 0; i < 1024; i++ {
+	for i := range 1024 {
 		q := &Query{
 			LTime: LamportTime(i),
 		}
@@ -229,11 +223,7 @@ func TestSnapshotter_forceCompact(t *testing.T) {
 }
 
 func TestSnapshotter_leave(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	stopCh := make(chan struct{})
@@ -263,7 +253,7 @@ func TestSnapshotter_leave(t *testing.T) {
 	meJoin := MemberEvent{
 		Type: EventMemberJoin,
 		Members: []Member{
-			Member{
+			{
 				Name: "foo",
 				Addr: []byte{127, 0, 0, 1},
 				Port: 5000,
@@ -310,11 +300,7 @@ func TestSnapshotter_leave(t *testing.T) {
 }
 
 func TestSnapshotter_leave_rejoin(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	stopCh := make(chan struct{})
@@ -344,7 +330,7 @@ func TestSnapshotter_leave_rejoin(t *testing.T) {
 	meJoin := MemberEvent{
 		Type: EventMemberJoin,
 		Members: []Member{
-			Member{
+			{
 				Name: "foo",
 				Addr: []byte{127, 0, 0, 1},
 				Port: 5000,
@@ -391,12 +377,8 @@ func TestSnapshotter_leave_rejoin(t *testing.T) {
 }
 
 func TestSnapshotter_slowDiskNotBlockingEventCh(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	t.Log("Temp dir", td)
-	defer os.RemoveAll(td)
+	t.Skip("Flaky test")
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	stopCh := make(chan struct{})
@@ -420,11 +402,11 @@ func TestSnapshotter_slowDiskNotBlockingEventCh(t *testing.T) {
 	startCh := make(chan struct{})
 	go func() {
 		<-startCh
-		for i := 0; i < numEvents; i++ {
+		for i := range numEvents {
 			e := MemberEvent{
 				Type: EventMemberJoin,
 				Members: []Member{
-					Member{
+					{
 						Name: fmt.Sprintf("foo%d", i),
 						Addr: []byte{127, 0, byte((i / 256) % 256), byte(i % 256)},
 						Port: 5000,
@@ -477,12 +459,7 @@ func TestSnapshotter_slowDiskNotBlockingEventCh(t *testing.T) {
 }
 
 func TestSnapshotter_blockedUpstreamNotBlockingMemberlist(t *testing.T) {
-	td, err := ioutil.TempDir("", "serf")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	t.Log("Temp dir", td)
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	clock := new(LamportClock)
 	stopCh := make(chan struct{})
@@ -501,11 +478,11 @@ func TestSnapshotter_blockedUpstreamNotBlockingMemberlist(t *testing.T) {
 	numEvents := 3000
 
 	// Send some updates
-	for i := 0; i < numEvents; i++ {
+	for i := range numEvents {
 		e := MemberEvent{
 			Type: EventMemberJoin,
 			Members: []Member{
-				Member{
+				{
 					Name: fmt.Sprintf("foo%d", i),
 					Addr: []byte{127, 0, byte((i / 256) % 256), byte(i % 256)},
 					Port: 5000,

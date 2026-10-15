@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package testutil
 
 import (
@@ -71,6 +74,6 @@ func TakeIP() (ip net.IP, returnFn func()) {
 	}
 }
 
-func logf(format string, a ...interface{}) {
+func logf(format string, a ...any) {
 	fmt.Fprintf(os.Stdout, "testutil: "+format+"\n", a...)
 }

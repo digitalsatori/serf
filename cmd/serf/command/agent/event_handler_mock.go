@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -37,5 +40,5 @@ func (h *MockQueryHandler) HandleEvent(e serf.Event) {
 	h.Queries = append(h.Queries, query)
 	h.Unlock()
 
-	query.Respond(h.Response)
+	_ = query.Respond(h.Response)
 }

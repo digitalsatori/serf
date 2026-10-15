@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -5,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/cmd/serf/command/agent"
-	"github.com/mitchellh/cli"
 )
 
 // TagsCommand is an interface to dynamically add or otherwise modify a

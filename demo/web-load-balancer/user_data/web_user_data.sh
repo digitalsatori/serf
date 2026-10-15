@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright IBM Corp. 2013, 2026
+# SPDX-License-Identifier: MPL-2.0
+
 NODE_SETUP_URL="https://raw.github.com/hashicorp/serf/master/demo/web-load-balancer/setup_web_server.sh"
 
 SERF_SETUP_URL="https://raw.github.com/hashicorp/serf/master/demo/web-load-balancer/setup_serf.sh"

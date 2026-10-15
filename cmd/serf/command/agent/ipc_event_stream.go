@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package agent
 
 import (
@@ -8,7 +11,7 @@ import (
 )
 
 type streamClient interface {
-	Send(*responseHeader, interface{}) error
+	Send(*responseHeader, any) error
 	RegisterQuery(*serf.Query) uint64
 }
 

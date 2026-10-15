@@ -1,0 +1,79 @@
+# Copyright IBM Corp. 2013, 2026
+# SPDX-License-Identifier: MPL-2.0
+
+version: "2"
+run:
+  concurrency: 4
+linters:
+  default: none
+  enable:
+    - errcheck
+    - forbidigo
+    - govet
+    - ineffassign
+    - modernize
+    - staticcheck
+    - unparam
+    - unused
+
+  settings:
+    forbidigo:
+      # Forbid the following identifiers (list of regexp).
+      forbid:
+        - pattern: \brequire\.New\b(# Use package-level functions with explicit TestingT)?
+        - pattern: \bassert\.New\b(# Use package-level functions with explicit TestingT)?
+        - pattern: \bmetrics\.IncrCounter\b(# Use labeled metrics)?
+        - pattern: \bmetrics\.AddSample\b(# Use labeled metrics)?
+        - pattern: \bmetrics\.MeasureSince\b(# Use labeled metrics)?
+        - pattern: \bmetrics\.SetGauge\b(# Use labeled metrics)?
+      # Exclude godoc examples from forbidigo checks.
+      # Default: true
+      exclude-godoc-examples: false
+
+    errcheck:
+      disable-default-exclusions: false
+      verbose: true
+      exclude-functions:
+        - "fmt.Fprintf"
+        - "(*os.File).Close"
+        - "(net.Conn).Close"
+        - "(io.Closer).Close"
+        - "(net.Listener).Close"
+        - "(*net.TCPListener).Close"
+
+        - "(*github.com/hashicorp/serf/client.Client).Close"
+        - "(*github.com/hashicorp/serf/client.RPCClient).Stop"
+        - "(*github.com/hashicorp/serf/client.RPCClient).Close"
+        - "(*github.com/hashicorp/serf/cmd/serf/command/agent.Agent).Shutdown"
+        - "(*github.com/hashicorp/serf/cmd/serf/command/agent.Agent).Leave"
+        - "(*github.com/hashicorp/serf/cmd/serf/command/agent.GatedWriter).Write"
+        - "(*github.com/hashicorp/serf/cmd/serf/command/agent.IPCClient).Send"
+        - "(*github.com/hashicorp/serf/cmd/serf/command/agent.logWriter).Write"
+        - "(*github.com/hashicorp/serf/serf.Serf).Shutdown"
+
+
+  exclusions:
+    rules:
+      # ignore SA9004: only the first constant in this group has an explicit type
+      # https://staticcheck.io/docs/checks#SA9004
+      - linters:
+          - staticcheck
+        text: 'SA9004:'
+
+      # ignore ST1005: error strings should not be capitalized.
+      # https://staticcheck.io/docs/checks#ST1005
+      # we have a lot of existing errors and no idea whether downstream
+      # consumers will be switching on the exact error message
+      - linters:
+          - staticcheck
+        text: 'ST1005:'
+
+      # ignore SA1019 deprecation warning for backwards compatibility
+      - linters:
+          - staticcheck
+        text: 'SA1019: codec.BasicHandle is deprecated'
+
+formatters:
+  settings:
+    gofmt:
+      simplify: true

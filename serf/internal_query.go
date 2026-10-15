@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -72,7 +75,7 @@ type nodeKeyResponse struct {
 // newSerfQueries is used to create a new serfQueries. We return an event
 // channel that is ingested and forwarded to an outCh. Any Queries that
 // have the InternalQueryPrefix are handled instead of forwarded.
-func newSerfQueries(serf *Serf, logger *log.Logger, outCh chan<- Event, shutdownCh <-chan struct{}) (chan<- Event, error) {
+func newSerfQueries(serf *Serf, logger *log.Logger, outCh chan<- Event, shutdownCh <-chan struct{}) (chan<- Event, error) { //nolint:unparam
 	inCh := make(chan Event, 1024)
 	q := &serfQueries{
 		inCh:       inCh,
@@ -148,7 +151,7 @@ func (s *serfQueries) handleConflict(q *Query) {
 	s.serf.memberLock.Unlock()
 
 	// Encode the response
-	buf, err := encodeMessage(messageConflictResponseType, out)
+	buf, err := encodeMessage(messageConflictResponseType, out, s.serf.msgpackUseNewTimeFormat)
 	if err != nil {
 		s.logger.Printf("[ERR] serf: Failed to encode conflict query response: %v", err)
 		return
@@ -171,7 +174,7 @@ func (s *serfQueries) keyListResponseWithCorrectSize(q *Query, resp *nodeKeyResp
 	}
 
 	for i := maxListKeys; i >= 0; i-- {
-		buf, err := encodeMessage(messageKeyResponseType, resp)
+		buf, err := encodeMessage(messageKeyResponseType, resp, q.serf.config.MsgpackUseNewTimeFormat)
 		if err != nil {
 			return nil, messageQueryResponse{}, err
 		}
@@ -180,7 +183,7 @@ func (s *serfQueries) keyListResponseWithCorrectSize(q *Query, resp *nodeKeyResp
 		qresp := q.createResponse(buf)
 
 		// Encode response
-		raw, err := encodeMessage(messageQueryResponseType, qresp)
+		raw, err := encodeMessage(messageQueryResponseType, qresp, q.serf.msgpackUseNewTimeFormat)
 		if err != nil {
 			return nil, messageQueryResponse{}, err
 		}
@@ -214,7 +217,7 @@ func (s *serfQueries) sendKeyResponse(q *Query, resp *nodeKeyResponse) {
 			return
 		}
 	default:
-		buf, err := encodeMessage(messageKeyResponseType, resp)
+		buf, err := encodeMessage(messageKeyResponseType, resp, s.serf.msgpackUseNewTimeFormat)
 		if err != nil {
 			s.logger.Printf("[ERR] serf: Failed to encode key response: %v", err)
 			return
@@ -235,8 +238,14 @@ func (s *serfQueries) handleInstallKey(q *Query) {
 	response := nodeKeyResponse{Result: false}
 	keyring := s.serf.config.MemberlistConfig.Keyring
 	req := keyRequest{}
+	var err error
 
-	err := decodeMessage(q.Payload[1:], &req)
+	if len(q.Payload) < 1 {
+		s.logger.Printf("[ERR] serf: Invalid key request payload")
+		goto SEND
+	}
+
+	err = decodeMessage(q.Payload[1:], &req)
 	if err != nil {
 		s.logger.Printf("[ERR] serf: Failed to decode key request: %v", err)
 		goto SEND
@@ -277,8 +286,14 @@ func (s *serfQueries) handleUseKey(q *Query) {
 	response := nodeKeyResponse{Result: false}
 	keyring := s.serf.config.MemberlistConfig.Keyring
 	req := keyRequest{}
+	var err error
 
-	err := decodeMessage(q.Payload[1:], &req)
+	if len(q.Payload) < 1 {
+		s.logger.Printf("[ERR] serf: Invalid key request payload")
+		goto SEND
+	}
+
+	err = decodeMessage(q.Payload[1:], &req)
 	if err != nil {
 		s.logger.Printf("[ERR] serf: Failed to decode key request: %v", err)
 		goto SEND
@@ -317,8 +332,14 @@ func (s *serfQueries) handleRemoveKey(q *Query) {
 	response := nodeKeyResponse{Result: false}
 	keyring := s.serf.config.MemberlistConfig.Keyring
 	req := keyRequest{}
+	var err error
 
-	err := decodeMessage(q.Payload[1:], &req)
+	if len(q.Payload) < 1 {
+		s.logger.Printf("[ERR] serf: Invalid key request payload")
+		goto SEND
+	}
+
+	err = decodeMessage(q.Payload[1:], &req)
 	if err != nil {
 		s.logger.Printf("[ERR] serf: Failed to decode key request: %v", err)
 		goto SEND

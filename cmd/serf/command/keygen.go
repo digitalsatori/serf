@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -6,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mitchellh/cli"
+	"github.com/hashicorp/cli"
 )
 
 // KeygenCommand is a Command implementation that generates an encryption
@@ -25,7 +28,7 @@ func (c *KeygenCommand) Run(_ []string) int {
 		return 1
 	}
 	if n != 32 {
-		c.Ui.Error(fmt.Sprintf("Couldn't read enough entropy. Generate more entropy!"))
+		c.Ui.Error("Couldn't read enough entropy. Generate more entropy!")
 		return 1
 	}
 

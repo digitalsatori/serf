@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -5,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/serf"
 	"github.com/hashicorp/serf/testutil"
-	"github.com/mitchellh/cli"
 )
 
 func TestForceLeaveCommandRun(t *testing.T) {
@@ -49,7 +52,7 @@ WAIT:
 		t.Fatalf("should have 2 members: %#v", a1.Serf().Members())
 	}
 
-	if m[1].Status != serf.StatusFailed && time.Now().Sub(start) < 3*time.Second {
+	if m[1].Status != serf.StatusFailed && time.Since(start) < 3*time.Second {
 		goto WAIT
 	}
 
@@ -133,7 +136,7 @@ WAIT:
 		t.Fatalf("should have 2 members: %#v", a1.Serf().Members())
 	}
 
-	if m[1].Status != serf.StatusFailed && time.Now().Sub(start) < 3*time.Second {
+	if m[1].Status != serf.StatusFailed && time.Since(start) < 3*time.Second {
 		goto WAIT
 	}
 

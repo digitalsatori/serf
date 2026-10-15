@@ -1,11 +1,14 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/serf/testutil"
-	"github.com/mitchellh/cli"
 )
 
 func TestReachabilityCommand_Run(t *testing.T) {

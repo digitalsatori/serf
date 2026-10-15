@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -149,7 +152,7 @@ func TestSerf_ShouldProcess(t *testing.T) {
 
 func Test_kRandomMembers(t *testing.T) {
 	nodes := []Member{}
-	for i := 0; i < 90; i++ {
+	for i := range 90 {
 		// Half the nodes are in a bad state
 		state := StatusAlive
 		switch i % 3 {

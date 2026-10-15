@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package command
 
 import (
@@ -6,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/cli"
 	"github.com/hashicorp/logutils"
-	"github.com/mitchellh/cli"
 )
 
 // MonitorCommand is a Command implementation that queries a running
@@ -57,7 +60,7 @@ func (c *MonitorCommand) Run(args []string) int {
 	}
 	defer client.Close()
 
-	eventCh := make(chan map[string]interface{}, 1024)
+	eventCh := make(chan map[string]any, 1024)
 	streamHandle, err := client.Stream("*", eventCh)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error starting stream: %s", err))

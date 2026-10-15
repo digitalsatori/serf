@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2013, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package serf
 
 import (
@@ -5,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/go-msgpack/v2/codec"
 )
 
 // messageType are the types of gossip messages Serf will send along
@@ -127,16 +130,20 @@ func (m *messageQueryResponse) Ack() bool {
 	return (m.Flags & queryFlagAck) != 0
 }
 
-func decodeMessage(buf []byte, out interface{}) error {
-	var handle codec.MsgpackHandle
+func decodeMessage(buf []byte, out any) error {
+	handle := codec.MsgpackHandle{}
 	return codec.NewDecoder(bytes.NewReader(buf), &handle).Decode(out)
 }
 
-func encodeMessage(t messageType, msg interface{}) ([]byte, error) {
+func encodeMessage(t messageType, msg any, msgpackUseNewTimeFormat bool) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte(uint8(t))
 
-	handle := codec.MsgpackHandle{}
+	handle := codec.MsgpackHandle{
+		BasicHandle: codec.BasicHandle{ //nolint:staticcheck
+			TimeNotBuiltin: !msgpackUseNewTimeFormat,
+		},
+	}
 	encoder := codec.NewEncoder(buf, &handle)
 	err := encoder.Encode(msg)
 	return buf.Bytes(), err
@@ -154,7 +161,7 @@ func encodeRelayMessage(
 	t messageType,
 	addr net.UDPAddr,
 	nodeName string,
-	msg interface{},
+	msg any,
 ) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	handle := codec.MsgpackHandle{}
@@ -175,7 +182,7 @@ func encodeRelayMessage(
 	return buf.Bytes(), err
 }
 
-func encodeFilter(f filterType, filt interface{}) ([]byte, error) {
+func encodeFilter(f filterType, filt any) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte(uint8(f))
 
